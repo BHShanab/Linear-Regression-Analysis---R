@@ -4,7 +4,14 @@ author: "Abdulaziz - Belal Shanab"
 date: "2024-03-21"
 output: pdf_document
 ---
+```{r setup, include=FALSE}
+library(tidyverse)
 
+# Load data
+data <- read.csv("path/to/your/data.csv")
+
+# Preview the data
+head(data)
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
