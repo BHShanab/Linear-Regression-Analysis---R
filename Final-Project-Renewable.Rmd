@@ -1,0 +1,379 @@
+---
+title: "Projec-R1"
+author: "Abdulaziz - Belal Shanab"
+date: "2024-03-21"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**About Dataset**
+
+This dataset encapsulates a diverse array of features, including temperature, humidity, occupancy, HVAC and lighting usage, renewable energy contributions, 
+and more. Each timestamp provides a snapshot of a hypothetical environment, allowing for in-depth analysis and modeling of energy consumption behaviors. 
+Dive into the nuances of this synthetic dataset, designed to emulate real-world scenarios, and unravel the complexities that influence energy usage. Whether you are delving into predictive modeling or honing your data analysis skills, this dataset offers a dynamic playground for experimentation and discovery.
+
+https://www.kaggle.com/datasets/mrsimple07/energy-consumption-prediction?resource=download
+
+**Reading data**
+First we read the data and convert necessary variables to
+categorical variables
+```{r}
+data <- read.csv("Energy_consumption.csv")
+
+summary(data)
+data$LightingUsage <- as.factor(data$LightingUsage)
+data$HVACUsage <- as.factor(data$HVACUsage)
+data$DayOfWeek <- as.factor(data$DayOfWeek)
+data$Holiday <- as.factor(data$Holiday)
+str(data)
+
+```
+Next, we check the histograms of numerical variables for any potential outliers.
+
+```{r}
+hist(data$EnergyConsumption, 
+     breaks = 30, 
+     col = "blue", 
+     main = "Histogram of Energy Consumption", 
+     xlab = " Energy Consumption", 
+     ylab = "Frequency")
+
+hist(data$RenewableEnergy, 
+     breaks = 30, 
+     col = "red", 
+     main = "Histogram of renewable energy", 
+     xlab = "renewable energy", 
+     ylab = "Frequency")
+
+hist(data$Temperature, 
+     breaks = 30, 
+     col = "green", 
+     main = "Histogram of temperature", 
+     xlab = "temperature", 
+     ylab = "Frequency")
+
+hist(data$Humidity, 
+     breaks = 30, 
+     col = "black", 
+     main = "Histogram of humidity", 
+     xlab = "humidity", 
+     ylab = "Frequency")
+
+hist(data$SquareFootage, 
+     breaks = 30, 
+     col = "brown", 
+     main = "Histogram of square footage", 
+     xlab = "square footage", 
+     ylab = "Frequency")
+hist(data$Occupancy, 
+     breaks = 30, 
+     col = "yellow", 
+     main = "Histogram of occupancy", 
+     xlab = "occupancy", 
+     ylab = "Frequency")
+```
+
+# Energy consumption is normally distributed.......
+
+
+```{r}
+cor(data[, c(2, 3, 4, 5, 8, 11)])
+```
+There is no strong correlations between independent variables.
+
+
+Building model
+```{r}
+mdl <- lm(EnergyConsumption ~ Temperature + Humidity + SquareFootage + Occupancy
+          + LightingUsage + HVACUsage + DayOfWeek + Holiday + RenewableEnergy
+          , data=data)
+summary(mdl)
+```
+# Interperation
+Intercept (22.8302): The expected energy consumption when all predictors are at their reference level (e.g., HVAC off, LightingUsage off, not a holiday, etc.) and numerical predictors are 0.
+
+Temperature (1.9940): For each one-unit increase in temperature, energy consumption is expected to increase by approximately 1.9940 units, all else
+being equal. This suggests a positive relationship between temperature and 
+energy consumption.
+
+Humidity (-0.0392): For each 1% increase in humidity, energy consumption is expected to decrease by approximately 0.0392 units. This slight decrease suggests a minor negative relationship between humidity and energy consumption.
+
+SquareFootage (-0.0004): The effect of square footage on energy consumption is minimal and not statistically significant, as indicated by its p-value (0.5260).
+
+Occupancy (0.5287): For each one-unit increase in occupancy, energy consumption increases by approximately 0.5287 units, indicating that higher occupancy levels lead to higher energy consumption.
+
+LightingUsageOn (1.6965): Having the lights on is associated with an increase in energy consumption by approximately 1.6965 units compared to when the lights are off.
+
+HVACUsageOn (4.5923): Turning the HVAC on is associated with an increase in energy consumption by approximately 4.5923 units compared to when the HVAC is off.
+
+DayOfWeek (Monday through Wednesday): The coefficients for days of the week are not significantly different from the reference day or not listed days, as indicated by their high p-values. This suggests no significant difference in energy consumption on these days compared to the reference day.
+
+HolidayYes (0.3171): Being a holiday is associated with an increase in energy consumption by approximately 0.3171 units compared to non-holiday days, though this is not statistically significant (p-value 0.3251).
+
+**we need to understand this term more**
+RenewableEnergy (0.0739): For each 1% increase in the contribution of renewable energy sources, energy consumption increases by approximately 0.0739 units. This coefficient, interpreted in the context of renewable energy's role, might reflect the incremental contribution of renewable sources to meeting energy demands rather than displacing non-renewable energy directly. It's essential to consider the broader energy mix and efficiency measures in place, as increased renewable energy contributions could support overall energy needs more sustainably.
+
+We would need to check the leverage points and HIP to check the influence on the model.
+```{r}
+h <- hatvalues(mdl)
+plot(h, main="leverage plot", ylab="Leverage value", xlab="observation index", pch=16)
+n=dim(data)[1]
+p=10
+cutoff=(2*p)/n
+abline(h=cutoff, col='blue')
+which(h>cutoff)
+
+
+c <-cooks.distance(mdl)
+plot(c,main="HIP plots",ylab ='Cook distance', xlab='observation index', pch=16)
+abline(h=1, col='red')
+which(c>1)
+```
+It seems that we do not have high influencer point HIP, and the leverage points looks close to the cut off line and we could neglect them because as n increase the cutoff line tend to be lower and since our n is very large it seems the points may not be outliers.
+
+let us check this model for constant variance assumption and linear distribution of residuals.by plotting Studentized Residuals vs Fitted values and QQ plot, and doint BP-test and Shapiro test.
+
+```{r}
+library(lmtest)
+## Compute Studentized Residual 
+ri <- rstandard(mdl)
+
+## Compute Fitted Values
+fi <- fitted(mdl)
+
+## Studentized Residual vs Fitted Values 
+plot(fi,ri, pch = 16, xlab="Fitted line, Y-hat", ylab="studentized residuals")
+abline(0,0,col = 'blue')
+
+bptest(mdl)
+## QQ Plot
+qqnorm(ri)
+abline(0,1,col = 'red')
+shapiro.test(ri)
+
+dw_result <- dwtest(mdl)
+print(dw_result)
+
+```
+All assumptions of linear regression holds.
+I think we may use dw test because we have this time series data
+
+Now, let us get the best solutions using library leaps.
+```{r}
+library(leaps)
+
+regfit.full <- regsubsets(EnergyConsumption ~ Temperature + Humidity + SquareFootage + Occupancy
+          + LightingUsage + HVACUsage + DayOfWeek + Holiday + RenewableEnergy
+          , data=data, method='exhaustive', nbest =3)
+
+summary(regfit.full, all.best = TRUE)
+output=summary(regfit.full, all.best = TRUE)
+criterion_mat <- cbind(output$rsq, output$adjr2, output$cp, output$bic)
+colnames(criterion_mat)=c('R2','adjR2','Cp','BIC')
+results_mat= cbind(output$outmat, round(criterion_mat,3))
+results_mat
+```
+The best model is the model with 5 predictors
+
+Energy consumption= temperature + occupancy +lightingusageOn + HVACusageOn + RenewableEnergy
+
+
+It has $R^2$=0.618 , $R^2adj$=0.616 CP=4.46 (optimal=6), BIC=-920
+
+
+We can double check using AIC and BIC
+
+```{r}
+## Forward selection
+null_mdl<- lm(EnergyConsumption ~ 1, data = data)
+
+mdl_forward_aic <- step(null_mdl, direction='forward', scope=formula(mdl))
+print(mdl_forward_aic)
+```
+
+```{r}
+#Backward selection
+
+mdl_backward_aic <- step(mdl, direction='backward', scope=formula(mdl))
+print(mdl_backward_aic)
+```
+```{r}
+## mixed null selection
+
+mdl_both_null_aic <- step(null_mdl, direction='both', scope=formula(mdl))
+print(mdl_both_null_aic)
+```
+We have similar results.
+
+```{r}
+## mixed full selection
+
+mdl_both_full_aic <- step(mdl, direction='both', scope=formula(mdl))
+print(mdl_both_full_aic)
+```
+
+Now, we will use the BIC selection:
+```{r}
+#Backward selection
+n=dim(data)[1]
+
+mdl_backward_bic <- step(mdl, direction='backward', scope=formula(mdl), k=log(n))
+print(mdl_backward_bic)
+```
+This is the best model.
+
+Now, let us check the best model:
+```{r}
+bestmdl <- mdl_backward_bic
+summary(bestmdl)
+```
+So, our final model is:
+$$ \text{Energy consumption, (Y)} = 20.49020 +1.99755 \cdot \text{Temperature} + 0.52742 \cdot \text{Occupancy}\ +1.72315 \cdot \text{LightingUsageOn} +4.67803 \cdot \text{HVACUsageOn} +0.07263 \cdot \text{RenewableEnergy}$$
+where, 
+$$\ \beta_0 = 20.49020,\beta_1 =1.99755,\beta_2 = 0.52742,\beta_3 = 1.72315,\beta_4 = 4.67803,\ and\ beta_5= 0.07263$$
+$$ \text{F-statistic: }321.2\ \text { P-value: < 2.2e-16} \text { & R-squared:  0.6177}  $$
+
+```{r}
+h <- hatvalues(bestmdl)
+plot(h, main="leverage plot", ylab="Leverage value", xlab="observation index", pch=16)
+n=dim(data)[1]
+p=10
+cutoff=(2*p)/n
+abline(h=cutoff, col='red')
+which(h>cutoff)
+
+
+c <-cooks.distance(bestmdl)
+plot(c,main="HIP plots",ylab ='Cook distance', xlab='observation index', pch=16)
+abline(h=1, col='blue')
+which(c>1)
+```
+
+
+Checking model assumption
+```{r}
+library(lmtest)
+## Compute Studentized Residual 
+ri <- rstandard(bestmdl)
+
+## Compute Fitted Values
+fi <- fitted(bestmdl)
+
+## Studentized Residual vs Fitted Values 
+plot(fi,ri, pch = 16, ylab="Studentized Residual ", xlab="Fitted line Y-hat"); abline(0,0,col = 'blue')
+
+bptest(bestmdl)
+## QQ Plot
+qqnorm(ri)
+abline(0,1,col = 'red')
+shapiro.test(ri)
+
+dw_result <- dwtest(bestmdl)
+print(dw_result)
+
+```
+all assumptions hold
+
+```{r}
+# Set the size of the plots
+par(mfrow=c(4, 2), mar=c(4, 4, 2, 2)) # Setting up the layout for the plots and adjusting margin sizes
+
+# Plotting Temperature vs. EnergyConsumption
+plot(data$Temperature, data$EnergyConsumption, main="Temperature vs. Energy Consumption", xlab="Temperature", ylab="Energy Consumption", col="red", cex=1.2)
+abline(lm(EnergyConsumption ~ Temperature, data), col="black")
+
+# Plotting Humidity vs. EnergyConsumption
+plot(data$Humidity, data$EnergyConsumption, main="Humidity vs. Energy Consumption", xlab="Humidity", ylab="Energy Consumption", col="black", cex=1.2)
+abline(lm(EnergyConsumption ~ Humidity, data), col="red")
+
+# Plotting SquareFootage vs. EnergyConsumption
+plot(data$SquareFootage, data$EnergyConsumption, main="Square Footage vs. Energy Consumption", xlab="Square Footage", ylab="Energy Consumption", col="green", cex=1.2)
+abline(lm(EnergyConsumption ~ SquareFootage, data), col="black")
+
+# Plotting Occupancy vs. EnergyConsumption
+plot(data$Occupancy, data$EnergyConsumption, main="Occupancy vs. Energy Consumption", xlab="Occupancy", ylab="Energy Consumption", col="orange", cex=1.2)
+abline(lm(EnergyConsumption ~ Occupancy, data), col="black")
+
+# Plotting RenewableEnergy vs. EnergyConsumption
+plot(data$RenewableEnergy, data$EnergyConsumption, main="Renewable Energy vs. Energy Consumption", xlab="Renewable Energy", ylab="Energy Consumption", col="blue", cex=1.2)
+abline(lm(EnergyConsumption ~ RenewableEnergy, data), col="black")
+
+
+# Plotting LightingUsage vs. EnergyConsumption
+plot(data$LightingUsage, data$EnergyConsumption, main="Lighting Usage vs. Energy Consumption", xlab="Lighting Usage", ylab="Energy Consumption", col="purple", cex=1.2)
+
+# Plotting HVACUsage vs. EnergyConsumption
+plot(data$HVACUsage, data$EnergyConsumption, main="HVAC Usage vs. Energy Consumption", xlab="HVAC Usage", ylab="Energy Consumption", col="pink", cex=1.2)
+
+```
+Another way to plot
+```{r}
+# Load required packages
+library(ggplot2)
+
+# Set the size of the plots
+plot_size <- 6
+
+# Create a ggplot object for each variable vs. EnergyConsumption with a smoothed line
+p1 <- ggplot(data, aes(x=Temperature, y=EnergyConsumption)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE) +
+  labs(title="Temperature vs. Energy Consumption") +
+  theme_minimal(base_size = plot_size)
+
+p2 <- ggplot(data, aes(x=Humidity, y=EnergyConsumption)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE) +
+  labs(title="Humidity vs. Energy Consumption") +
+  theme_minimal(base_size = plot_size)
+
+p3 <- ggplot(data, aes(x=SquareFootage, y=EnergyConsumption)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE) +
+  labs(title="Square Footage vs. Energy Consumption") +
+  theme_minimal(base_size = plot_size)
+
+p4 <- ggplot(data, aes(x=Occupancy, y=EnergyConsumption)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE) +
+  labs(title="Occupancy vs. Energy Consumption") +
+  theme_minimal(base_size = plot_size)
+
+p5 <- ggplot(data, aes(x=RenewableEnergy, y=EnergyConsumption)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE) +
+  labs(title="Renewable Energy vs. Energy Consumption") +
+  theme_minimal(base_size = plot_size)
+
+# Create boxplot for HVACUsage
+p6 <- ggplot(data, aes(x = "", y = HVACUsage)) +
+  geom_boxplot(fill = "blue", color = "black", alpha = 0.7, outlier.color = "red") +
+  labs(title = "HVAC Usage", y = "HVAC Usage") +
+  theme_minimal(base_size = plot_size) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+# Create boxplot for DailyUsageFactors
+p7 <- ggplot(data, aes(x = "", y = DailyUsageFactors)) +
+  geom_boxplot(fill = "brown", color = "black", alpha = 0.7, outlier.color = "red") +
+  labs(title = "Daily Usage Factors", y = "Daily Usage Factors") +
+  theme_minimal(base_size = plot_size) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+# Display each plot individually in separate rows
+p1
+p2
+p3
+p4
+p5
+p6
+#p7
+
+```
+
